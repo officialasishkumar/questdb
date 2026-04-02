@@ -262,7 +262,7 @@ public class ReadParquetPageFrameCursor implements PageFrameCursor {
         }
 
         @Override
-        public PartitionDecoder getParquetPartitionDecoder() {
+        public PartitionDecoder getParquetDecoder() {
             return decoder;
         }
 
