@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*+*****************************************************************************
  *     ___                  _   ____  ____
  *    / _ \ _   _  ___  ___| |_|  _ \| __ )
  *   | | | | | | |/ _ \/ __| __| | | |  _ \
@@ -615,6 +615,15 @@ public class TableReader implements Closeable, SymbolTableSource {
         streamingMode = false;
     }
 
+    public boolean hasParquetPartitions() {
+        for (int i = 0; i < partitionCount; i++) {
+            if (txFile.isPartitionParquet(i)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean isActive() {
         return txnAcquired;
     }
@@ -956,6 +965,7 @@ public class TableReader implements Closeable, SymbolTableSource {
         } else {
             Path path = pathGenNativePartition(getPartitionIndex(columnBase), partitionTxn);
             try {
+                final long colTop = getColumnTop(columnBase, columnIndex);
                 if (direction == BitmapIndexReader.DIR_BACKWARD) {
                     reader = new BitmapIndexBwdReader(
                             configuration,
@@ -963,7 +973,7 @@ public class TableReader implements Closeable, SymbolTableSource {
                             metadata.getColumnName(columnIndex),
                             columnNameTxn,
                             partitionTxn,
-                            getColumnTop(columnBase, columnIndex)
+                            colTop
                     );
                     bitmapIndexes.setQuick(globalIndex, reader);
                 } else {
@@ -973,7 +983,7 @@ public class TableReader implements Closeable, SymbolTableSource {
                             metadata.getColumnName(columnIndex),
                             columnNameTxn,
                             partitionTxn,
-                            getColumnTop(columnBase, columnIndex)
+                            colTop
                     );
                     bitmapIndexes.setQuick(globalIndex + 1, reader);
                 }
@@ -1250,6 +1260,14 @@ public class TableReader implements Closeable, SymbolTableSource {
                             parquetPartitions.setQuick(partitionIndex, parquetMem);
                         }
                         openPartitionCount++;
+
+                        // Initialize columns and bitmap index readers for parquet partitions.
+                        // reloadColumnAt() sets columns to null (not NullMemoryCMR) for parquet,
+                        // which allows createBitmapIndexReaderAt() to open real bitmap index
+                        // readers from the .k/.v files in the native partition directory.
+                        path.trimTo(rootLen);
+                        Path nativePath = pathGenNativePartition(partitionIndex, partitionNameTxn);
+                        openPartitionColumns(partitionIndex, nativePath, getColumnBase(partitionIndex), partitionSize);
                     }
                     PartitionDecoder decoder = parquetPartitionDecoders.getQuick(partitionIndex);
                     if (decoder != null) {
@@ -1599,7 +1617,10 @@ public class TableReader implements Closeable, SymbolTableSource {
             // created in the current partition. Older partitions would simply have no
             // column file. This makes it necessary to check the partition timestamp in Column Version file
             // of when the column was added.
-            if (columnRowCount > 0 && (versionRecordIndex > -1 || columnVersionReader.getColumnTopPartitionTimestamp(writerIndex) <= partitionTimestamp)) {
+            final boolean hasVersionRecord = versionRecordIndex > -1;
+            final long colTopPartTs = columnVersionReader.getColumnTopPartitionTimestamp(writerIndex);
+            final boolean isColTopPartTsOk = colTopPartTs <= partitionTimestamp;
+            if (columnRowCount > 0 && (hasVersionRecord || isColTopPartTsOk)) {
                 if (partitionFormat == PartitionFormat.NATIVE) {
                     final int columnType = metadata.getColumnType(columnIndex);
 
