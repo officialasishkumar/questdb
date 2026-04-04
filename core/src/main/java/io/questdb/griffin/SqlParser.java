@@ -2851,7 +2851,7 @@ public class SqlParser {
             }
         }
 
-         // expect [latest by] (new syntax)
+        // expect [latest by] (new syntax)
 
         if (tok != null && isLatestKeyword(tok)) {
             if (model.getLatestByType() == QueryModel.LATEST_BY_DEPRECATED) {
@@ -3743,7 +3743,7 @@ public class SqlParser {
 
         model.setLatestByType(QueryModel.LATEST_BY_NEW);
 
-         if (tok != null) {
+        if (tok != null) {
             lexer.unparseLast();
         }
     }
