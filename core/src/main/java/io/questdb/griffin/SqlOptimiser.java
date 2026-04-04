@@ -4723,6 +4723,7 @@ public class SqlOptimiser implements Mutable {
                             && nested.getTableName() == null
                             && nested.getTableNameFunction() == null
                             && nested.getLatestBy().size() == 0
+                            && nested.getEarliestBy().size() == 0
             ) {
                 model.setTimestamp(timestamp);
                 model.setExplicitTimestamp(nested.isExplicitTimestamp());
@@ -4824,6 +4825,7 @@ public class SqlOptimiser implements Mutable {
                         }
                     } else if (nested == null
                             || nested.getLatestBy().size() > 0
+                            || nested.getEarliestBy().size() > 0
                             || nested.getLimitLo() != null
                             || nested.getLimitHi() != null
                             || (nested.getSampleBy() != null && !canPushToSampleBy(nested, literalCollectorANames))
@@ -5770,6 +5772,11 @@ public class SqlOptimiser implements Mutable {
         // latest on
         if (model.getLatestBy().size() > 0) {
             emitLiteralsTopDown(model.getLatestBy(), model);
+        }
+
+        // earliest on
+        if (model.getEarliestBy().size() > 0) {
+            emitLiteralsTopDown(model.getEarliestBy(), model);
         }
 
         // propagate explicit timestamp declaration
@@ -9898,6 +9905,7 @@ public class SqlOptimiser implements Mutable {
                         && model.getJoinModels().size() == 1
                         && model.getWhereClause() == null
                         && model.getLatestBy().size() == 0
+                        && model.getEarliestBy().size() == 0
         ) {
             model = model.getNestedModel();
         }
@@ -10063,6 +10071,7 @@ public class SqlOptimiser implements Mutable {
         while (branch != null) {
             // Skip branches where pushing could change semantics
             if (branch.getLatestBy().size() > 0
+                    || branch.getEarliestBy().size() > 0
                     || branch.getLimitLo() != null
                     || branch.getLimitHi() != null
                     || (branch.getSampleBy() != null && !canPushToSampleBy(branch, literalCollectorANames))
@@ -10888,6 +10897,9 @@ public class SqlOptimiser implements Mutable {
         if (queryModel.getLatestBy() != null) {
             tempExprs.addAll(queryModel.getLatestBy());
         }
+        if (queryModel.getEarliestBy() != null) {
+            tempExprs.addAll(queryModel.getEarliestBy());
+        }
         QueryModel child = queryModel.getNestedModel();
 
         for (int i = 0, n = tempExprs.size(); i < n; i++) {
@@ -10958,6 +10970,9 @@ public class SqlOptimiser implements Mutable {
                 }
                 if (parent.getLatestBy() != null) {
                     tempExprs.addAll(parent.getLatestBy());
+                }
+                if (parent.getEarliestBy() != null) {
+                    tempExprs.addAll(parent.getEarliestBy());
                 }
             }
 
